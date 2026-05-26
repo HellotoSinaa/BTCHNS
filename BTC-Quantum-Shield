@@ -1,0 +1,118 @@
+What is BTC-Quantum-Shield?
+BTC-Quantum-Shield is a research-grade framework for migrating and protecting Bitcoin wallets against quantum computer attacks using a custom Hybrid Name-Space (HNS) Protocol — a two-layer scheme that binds post-quantum identities to existing Bitcoin addresses.
+Why Now?
+
+A sufficiently powerful quantum computer running Shor's algorithm can break ECDSA (secp256k1) — the signature scheme Bitcoin relies on — exposing ~4 million BTC in P2PK outputs and all addresses with exposed public keys.
+
+BTC-Quantum-Shield provides:
+
+✅ Post-quantum key generation (CRYSTALS-Dilithium, FALCON, SPHINCS+)
+✅ HNS address binding — linking quantum-safe identities to classical BTC addresses
+✅ Safe migration paths for legacy wallets
+✅ Taproot-compatible hybrid transaction signing
+✅ Threshold signature support for multi-sig setups
+
+
+🧠 The HNS Protocol — How It Works
+The Hybrid Name-Space (HNS) Protocol is a two-phase commitment scheme:
+┌──────────────────────────────────────────────────────────────────┐
+│                      HNS PROTOCOL FLOW                           │
+│                                                                  │
+│  Phase 1 — ANCHOR                                                │
+│  ┌─────────────────┐    hash(PQ_pubkey)    ┌──────────────────┐ │
+│  │  Classic BTC    │ ──────────────────── ▶│  OP_RETURN TX    │ │
+│  │  Address (ECDSA)│                       │  (on-chain anchor│ │
+│  └─────────────────┘                       └──────────────────┘ │
+│                                                                  │
+│  Phase 2 — BIND                                                  │
+│  ┌─────────────────┐    PQ_sig(BTC_addr)   ┌──────────────────┐ │
+│  │  PQ Key Pair    │ ──────────────────── ▶│  HNS Registry    │ │
+│  │  (Dilithium3)   │                       │  (IPFS / L2)     │ │
+│  └─────────────────┘                       └──────────────────┘ │
+│                                                                  │
+│  Result: Ownership provable with PQ keys even after ECDSA break  │
+└──────────────────────────────────────────────────────────────────┘
+Phase 1 — Anchor: You embed a hash of your new post-quantum public key inside a Bitcoin OP_RETURN output, committing to it on-chain before quantum threat materializes.
+Phase 2 — Bind: You sign your classic Bitcoin address using your new PQ private key and register this in the HNS Registry (IPFS-based or L2 sidechain). This proves PQ ownership retroactively.
+Migration: Once quantum risk is imminent, you broadcast a PQ-signed sweep transaction moving funds to a P2TR (Taproot) output secured by your PQ key.
+
+🏗 Architecture
+btc-quantum-shield/
+├── src/
+│   └── quantum_shield/
+│       ├── keys.py          # PQ key generation (Dilithium, FALCON, SPHINCS+)
+│       ├── hns.py           # HNS Protocol — anchor & bind logic
+│       ├── wallet.py        # Quantum-safe HD wallet
+│       ├── migration.py     # Legacy → PQ-safe migration engine
+│       ├── taproot.py       # Taproot hybrid signing
+│       └── registry.py      # HNS Registry (IPFS + local)
+├── docs/
+│   ├── architecture.md      # Deep dive into HNS design
+│   ├── threat-model.md      # Quantum threat analysis
+│   └── migration-guide.md   # Step-by-step user guide
+├── examples/
+│   ├── generate_pq_wallet.py
+│   ├── anchor_to_chain.py
+│   └── migrate_legacy_wallet.py
+├── tests/
+│   ├── test_keys.py
+│   ├── test_hns.py
+│   └── test_migration.py
+└── scripts/
+    └── setup_hns_node.sh
+ Quick Start
+1. Install
+git clone https://github.com/your-org/btc-quantum-shield.git
+cd btc-quantum-shield
+pip install -e ".[dev]"
+2. Generate a Post-Quantum Wallet
+from quantum_shield import QuantumWallet
+
+# Create a new PQ wallet (Dilithium3 + secp256k1 hybrid)
+wallet = QuantumWallet.generate(algorithm="dilithium3")
+
+print(wallet.pq_public_key.hex())   # CRYSTALS-Dilithium public key
+print(wallet.btc_address)           # Taproot P2TR address
+print(wallet.hns_identity)          # HNS Protocol identity hash
+3. Anchor an Existing Address
+from quantum_shield import HNSProtocol
+
+hns = HNSProtocol(network="mainnet")
+
+# Bind your existing BTC address to a PQ key
+tx = hns.anchor(
+    btc_address="bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+    pq_pubkey=wallet.pq_public_key,
+)
+print(f"Anchor TX: {tx.txid}") 
+4. Migrate to Quantum-Safe Output
+from quantum_shield import MigrationEngine
+
+engine = MigrationEngine(wallet)
+sweep_tx = engine.migrate(
+    from_address="bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+    private_key_wif="your_wif_here",         # kept offline
+    destination=wallet.btc_address,           # new P2TR PQ-secured address
+)
+engine.broadcast(sweep_tx) 
+Supported PQC Algorithms
+AlgorithmTypeNIST LevelKey SizeSignature SizeCRYSTALS-Dilithium3LatticeLevel 31952 B3293 BFALCON-512LatticeLevel 1897 B~666 BSPHINCS+-SHA256-128fHash-basedLevel 132 B17088 BKyber-768 (key encap)LatticeLevel 31184 B—
+All algorithms are NIST Post-Quantum Cryptography Standard (FIPS 203/204/205) finalists/standards.
+
+🧪 Testing
+pytest tests/ -v --tb=short
+📖 Documentation
+
+Architecture Deep Dive
+Quantum Threat Model
+Migration Guide
+
+
+⚠️ Security Disclaimer
+This is research software. Do not use with real mainnet funds without thorough independent audit. Post-quantum Bitcoin migration is still an open research problem and protocol standards are evolving.
+
+📜 License
+MIT License — see LICENSE.
+
+🤝 Contributing
+PRs welcome. See CONTRIBUTING.md. Please open an issue before large changes.
